@@ -12,6 +12,7 @@ GAME_FPS = 60
 Z_NEAR = 0.1
 Z_FAR = 1000.0
 FOV = M.radians(90)
+LIGHT_SOURCE = Vec3(0, 0, 1)
 
 ASPECT_RATIO = HEIGHT / WIDTH
 DISTANCE_RATIO = 1 / M.tan(FOV / 2.0)
@@ -78,17 +79,33 @@ for row in mesh_cube_indices:
     mesh_cube.append(newRow)
 
 
-def draw_triangle(tri):
+def get_normal(tri):
+    A = tri[1] - tri[0]
+    B = tri[2] - tri[0]
+    return A.cross(B)
+
+
+def luminosity_from_light(normal, light):
+    luminosity = -normal.dot(light)
+    luminosity *= 255 / normal.length()
+    luminosity = int(luminosity)
+    luminosity = luminosity if luminosity >= 0 else 0
+    return luminosity
+
+def draw_tri_lines(tri):
     pygame.draw.lines(screen, (255, 255, 255), True, [
         (tri[0].x, tri[0].y),
         (tri[1].x, tri[1].y),
         (tri[2].x, tri[2].y)
     ])
 
-def get_normal(tri):
-    A = tri[1] - tri[0]
-    B = tri[2] - tri[0]
-    return A.cross(B)
+
+def draw_tri_fill(color, tri):
+    pygame.draw.polygon(screen, color,  [
+        (tri[0].x, tri[0].y),
+        (tri[1].x, tri[1].y),
+        (tri[2].x, tri[2].y),
+    ])
 
 
 def update():
@@ -116,8 +133,11 @@ def update():
             vec.y *= 0.5 * HEIGHT
             tri[i] = vec
 
+        lum = luminosity_from_light(tri_normal, LIGHT_SOURCE)
+        color = (lum, lum, lum)
 
-        draw_triangle(tri)
+        draw_tri_fill(color, tri)
+        # draw_triangle_fill(tri)
 
 
 def game_loop():

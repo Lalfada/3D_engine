@@ -68,6 +68,9 @@ class Vec3():
             + self.y**2
             + self.z**2)
     
+    def normalized(self):
+        return self.__truediv__(self.length())
+    
     def dot(self, other):
         prod1 = self.x * other.x
         prod2 = self.y * other.y
