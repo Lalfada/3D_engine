@@ -1,7 +1,7 @@
 import pygame
 import math as M
 from copy import deepcopy
-from vector import Vec3
+from vector import Vec3, matrix_mul
 
 BACKGROUND_COLOR = "black"
 HEIGHT = 720
@@ -66,8 +66,8 @@ mesh_cube_indices = [
     [6, 2, 3],
     
     # bottom
-    [0, 4, 5],
-    [5, 1, 0],
+    [0, 1, 5],
+    [5, 4, 0],
 ]
 
 mesh_cube = []
@@ -85,6 +85,11 @@ def draw_triangle(tri):
         (tri[2].x, tri[2].y)
     ])
 
+def get_normal(tri):
+    A = tri[1] - tri[0]
+    B = tri[2] - tri[0]
+    return A.cross(B)
+
 
 def update():
     theta_x =  pygame.time.get_ticks() * 1e-3
@@ -98,11 +103,19 @@ def update():
             vec = vec.matrix_mul(xrot_mat)
             vec = vec.matrix_mul(yrot_mat)
             vec.z += 3.0
+            tri[i] = vec
+
+        tri_normal = get_normal(tri)
+        if tri[0].dot(tri_normal) >= 0:
+            continue       
+
+        for i, vec in enumerate(tri):
             vec = vec.extended_matrix_mul(PROJECTION_MATRIX)
             vec += Vec3(1, 1, 0)
             vec.x *= 0.5 * WIDTH
             vec.y *= 0.5 * HEIGHT
             tri[i] = vec
+
 
         draw_triangle(tri)
 
