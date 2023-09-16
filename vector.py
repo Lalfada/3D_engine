@@ -95,11 +95,12 @@ class Vec3():
         res_matrix = matrix_mul(matrix, self.to_matrix())
         return Vec3(res_matrix[0][0], res_matrix[1][0], res_matrix[2][0])
     
+    # this functions expects a 3x4 matrix
     # enables matrix multplication to add smth to the resulting vector
-    def extended_matrix_mul(self, matrix): # matrix is a 3x4 list
+    # additionaly let the user do somthing to the resulting vector using the 4th component
+    def extended_matrix_mul(self, matrix, f = lambda vec, _: vec):
         in_matrix = self.to_extended_matrix()
         res_matrix = matrix_mul(matrix, in_matrix)
         res_vec = Vec3(res_matrix[0][0], res_matrix[1][0], res_matrix[2][0])
-        if res_matrix[3][0] != 0:
-            res_vec /= res_matrix[3][0]
+        res_vec = f(res_vec, res_matrix[3][0])
         return res_vec

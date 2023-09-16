@@ -25,6 +25,10 @@ PROJECTION_MATRIX = [
     [0.0, 0.0, 1.0, 0.0]
 ]
 
+# helper function to divide x and y component by z
+def projection_divide(vec, w):
+    return Vec3(vec.x / w, vec.y / w, vec.z) if w != 0 else vec
+
 # thx wikipedia
 def get_xrotation_matrix(angle):
     return [
@@ -174,7 +178,10 @@ def update():
 
         # projection and screen scaling
         for i, vec in enumerate(tri):
-            vec = vec.extended_matrix_mul(PROJECTION_MATRIX)
+            # the lambda
+            vec = vec.extended_matrix_mul(
+                PROJECTION_MATRIX, projection_divide)
+            
             vec += Vec3(1, 1, 0)
             vec.x *= 0.5 * WIDTH
             vec.y *= 0.5 * HEIGHT
