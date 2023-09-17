@@ -5,8 +5,9 @@ from vector import Vec3, matrix_mul
 
 BACKGROUND_COLOR = "black"
 HEIGHT = 720
-# WIDTH = 1280
-WIDTH = HEIGHT
+WIDTH = 1280
+SMALL_BORDER = min(HEIGHT, WIDTH)
+# WIDTH = HEIGHT
 GAME_FPS = 60
 
 Z_NEAR = 0.1
@@ -94,16 +95,17 @@ def meshdata_from_lines(lines):
                 continue
             if parts[0] == 'v':
                 # Parse vertex (v) lines
-                vertex = Vec3(float(parts[1]), float(parts[2]), float(parts[3]))
+                vertex = Vec3(float(parts[1]), 
+                    float(parts[2]), float(parts[3]))
                 vertices.append(vertex)
             elif parts[0] == 'f':
                 # Parse face (f) lines
-                tri = [int(part.split('/')[0]) - 1 for part in parts[1:]]  # Subtract 1 to convert to 0-based indexing
-                indices.append(tri)
+                # Subtract 1 to convert to 0-based indexing
+                tri = [int(part.split('/')[0]) - 1 for part in parts[1:]]
+                indices.append(tri) 
     return vertices, indices
 
 
-# thx chat gpt
 def mesh_from_obj(path):
     with open(path, 'r') as obj_file:
         lines = obj_file.readlines()
@@ -151,11 +153,12 @@ def update():
     drawing_buffer = []
 
     for tri in mesh_to_compute:
-        # rotate and translate
         for i, vec in enumerate(tri):
+            # rotate
             vec = vec.matrix_mul(xrot_mat)
             vec = vec.matrix_mul(yrot_mat)
-            vec.z += 10.0
+            # translate
+            vec.z += 7.0
 
             tri[i] = vec
 
@@ -176,15 +179,17 @@ def update():
     for v in sorted_drawing_buffer:
         (tri, _, tri_normal) = v
 
-        # projection and screen scaling
         for i, vec in enumerate(tri):
-            # the lambda
+            # projection
             vec = vec.extended_matrix_mul(
                 PROJECTION_MATRIX, projection_divide)
             
+            # scale to the screen size
             vec += Vec3(1, 1, 0)
-            vec.x *= 0.5 * WIDTH
-            vec.y *= 0.5 * HEIGHT
+            vec.x *= 0.5 * SMALL_BORDER
+            vec.y *= 0.5 * SMALL_BORDER
+            vec += Vec3((WIDTH - SMALL_BORDER) / 2.0,
+                         (HEIGHT - SMALL_BORDER) / 2.0, 0)
             tri[i] = vec
 
         lum = luminosity_from_light(tri_normal, LIGHT_SOURCE)
@@ -215,8 +220,8 @@ def game_loop():
 
 
 if __name__ == "__main__":
-    # mesh_cube = mesh_from_indices(cube_verticies, cube_indices) 
-    model_path = "AirShip.obj"
+    mesh_cube = mesh_from_indices(cube_verticies, cube_indices) 
+    model_path = "models/AirShip.obj"
     model_mesh = mesh_from_obj(model_path)
 
     # initial setup
