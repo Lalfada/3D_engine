@@ -2,6 +2,7 @@ import pygame
 import math as M
 from copy import deepcopy
 from vector import Vec3, matrix_mul
+from camera import Camera
 
 BACKGROUND_COLOR = "black"
 HEIGHT = 720
@@ -9,6 +10,7 @@ WIDTH = 1280
 SMALL_BORDER = min(HEIGHT, WIDTH)
 # WIDTH = HEIGHT
 GAME_FPS = 60
+CAMERA_SPEED = 5
 
 Z_NEAR = 0.1
 Z_FAR = 1000.0
@@ -30,6 +32,13 @@ PROJECTION_MATRIX = [
 def projection_divide(vec, w):
     return Vec3(vec.x / w, vec.y / w, vec.z) if w != 0 else vec
 
+SCREEN_SCCALING_MATRIX = [
+    [0.5 * SMALL_BORDER, 0.0, 0.0, 0.5 * WIDTH],
+    [0.0, 0.5 * SMALL_BORDER, 0.0, 0.5 * HEIGHT],
+    [0.0, 0.0, 1.0, 0.0],
+    [0.0, 0.0, 0.0, 1.0]
+]
+
 # thx wikipedia
 def get_xrotation_matrix(angle):
     return [
@@ -45,6 +54,39 @@ def get_yrotation_matrix(angle):
         [0.0, 1.0, 0.0],
         [- M.sin(angle), 0.0, M.cos(angle)],
     ]
+
+def get_pointat_matrix(pos, target, up):
+    new_forward = (target - pos).normalized()
+
+    a = new_forward * new_forward.dot(up)
+    new_up = up - a
+
+    # not sure it's the right order
+    right = new_up.cross(new_forward) 
+
+    return [
+        [right.x, new_up.x, new_forward.x, pos.x],
+        [right.y, new_up.y, new_forward.y, pos.y],
+        [right.z, new_up.z, new_forward.z, pos.z],
+        [0.0, 0.0, 0.0, 1]
+    ]
+
+# only works for rotation and translations matrices
+# to me it's a black box
+# mat is a 4x4 list
+def inverse_matrix(mat):
+    A = Vec3(mat[0][0], mat[0][1], mat[0][2])
+    B = Vec3(mat[1][0], mat[1][1], mat[1][2])
+    C = Vec3(mat[2][0], mat[2][1], mat[2][2])
+    T = Vec3(mat[0][3], mat[1][3], mat[2][3])
+
+    return [
+        [A.x, A.y, A.z, -T.dot(A)],
+        [B.x, B.y, B.z, -T.dot(B)],
+        [C.x, C.y, C.z, -T.dot(C)],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
+
 
 
 cube_verticies = [Vec3(0, 0, 0), Vec3(1, 0, 0), Vec3(1, 1, 0), Vec3(0, 1, 0),
@@ -79,10 +121,10 @@ cube_indices = [
 def mesh_from_indices(vertices, indices):
     mesh = []
     for row in indices:
-        newRow = []
+        new_row = []
         for k in row:
-            newRow.append(deepcopy(vertices[k]))
-        mesh.append(newRow)
+            new_row.append(deepcopy(vertices[k]))
+        mesh.append(new_row)
     return mesh
 
 
@@ -142,14 +184,19 @@ def draw_tri_fill(color, tri):
         (tri[2].x, tri[2].y),
     ])
 
-
-def update():
-    theta_x =  pygame.time.get_ticks() * 1e-3
+def render(cam):
+        # theta_x =  pygame.time.get_ticks() * 1e-3
+    theta_x = 0.0
     theta_y =  theta_x * 0.5
     xrot_mat = get_xrotation_matrix(theta_x)
     yrot_mat = get_yrotation_matrix(theta_y)
-    mesh_to_compute = deepcopy(model_mesh)
 
+    target = cam.pos + cam.look_dir
+    camera_matrix = get_pointat_matrix(cam.pos, target, cam.up)
+    view_matrix = inverse_matrix(camera_matrix)
+    # print(f"vm: {view_matrix}")
+
+    mesh_to_compute = deepcopy(model_mesh)
     drawing_buffer = []
 
     for tri in mesh_to_compute:
@@ -159,13 +206,14 @@ def update():
             vec = vec.matrix_mul(yrot_mat)
             # translate
             vec.z += 7.0
-
+            # camera tranform
+            vec = vec.extended_matrix_mul(view_matrix)
             tri[i] = vec
 
         # only draw triangles facing towards the camera
         tri_normal = get_normal(tri)
         if tri[0].dot(tri_normal) >= 0:
-            continue   
+            continue
 
         z_mid = (tri[0].z + tri[1].z + tri[2].z) / 3.0
         drawing_buffer.append((tri, z_mid, tri_normal))
@@ -178,18 +226,12 @@ def update():
 
     for v in sorted_drawing_buffer:
         (tri, _, tri_normal) = v
-
         for i, vec in enumerate(tri):
             # projection
             vec = vec.extended_matrix_mul(
                 PROJECTION_MATRIX, projection_divide)
-            
             # scale to the screen size
-            vec += Vec3(1, 1, 0)
-            vec.x *= 0.5 * SMALL_BORDER
-            vec.y *= 0.5 * SMALL_BORDER
-            vec += Vec3((WIDTH - SMALL_BORDER) / 2.0,
-                         (HEIGHT - SMALL_BORDER) / 2.0, 0)
+            vec = vec.extended_matrix_mul(SCREEN_SCCALING_MATRIX)
             tri[i] = vec
 
         lum = luminosity_from_light(tri_normal, LIGHT_SOURCE)
@@ -199,7 +241,15 @@ def update():
         # draw_triangle_fill(tri)
 
 
-def game_loop():
+def update(dt, cam):
+    # fill the screen with a color 
+    # to wipe away anything from last frame
+    screen.fill(BACKGROUND_COLOR)
+    cam.update(dt)
+    render(cam)
+
+
+def game_loop(cam):
     running = True
     clock = pygame.time.Clock()
     while running:
@@ -209,11 +259,7 @@ def game_loop():
             if event.type == pygame.QUIT:
                 running = False
 
-        # fill the screen with a color 
-        # to wipe away anything from last frame
-        screen.fill(BACKGROUND_COLOR)
-        # render the game
-        update()
+        update(clock.get_time() * 1e-3, cam)
         # flip() the display to put your work on screen
         pygame.display.flip()
         clock.tick(GAME_FPS)  # limits FPS to 60
@@ -221,14 +267,18 @@ def game_loop():
 
 if __name__ == "__main__":
     mesh_cube = mesh_from_indices(cube_verticies, cube_indices) 
-    model_path = "models/AirShip.obj"
+    model_path = "models/axis.obj"
     model_mesh = mesh_from_obj(model_path)
+
+    camera = Camera(pos = Vec3(0, 0, 0),
+        look_dir = Vec3(0, 0, 1), 
+        up = Vec3(0, 1, 0))
 
     # initial setup
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
     # core loop
-    game_loop()
+    game_loop(camera)
     # quit
     pygame.quit()
