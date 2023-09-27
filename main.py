@@ -247,11 +247,11 @@ def render(cam):
         # draw_triangle_fill(tri)
 
 
-def update(dt, cam, yo):
+def update(dt, cam):
     # fill the screen with a color 
     # to wipe away anything from last frame
     screen.fill(BACKGROUND_COLOR)
-    cam.update(dt, yo)
+    cam.update(dt)
     render(cam)
 
 
@@ -266,8 +266,11 @@ def game_loop(cam):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
 
-        update(clock.get_time() * 1e-3, cam, count % 60 == 0)
+        update(clock.get_time() * 1e-3, cam)
         # flip() the display to put your work on screen
         pygame.display.flip()
         clock.tick(GAME_FPS)  # limits FPS to 60
@@ -278,14 +281,19 @@ if __name__ == "__main__":
     model_path = "models/axis.obj"
     model_mesh = mesh_from_obj(model_path)
 
-    camera = Camera(pos = Vec3(0, 0, 0),
-        lam = M.pi / 2,
-        phi = 0.0,
-        up = Vec3(0, 1, 0))
 
     # initial setup
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
+
+    # camera has to be iniated after pygame.init
+    camera = Camera(pos = Vec3(0, 0, 0),
+        lam = M.pi / 2,
+        phi = 0.0,
+        up = Vec3(0, 1, 0),
+        mouse_pos = (WIDTH / 2, HEIGHT / 2))
+    
+    pygame.mouse.set_visible(False)
 
     # core loop
     game_loop(camera)
