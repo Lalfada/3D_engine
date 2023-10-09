@@ -24,6 +24,13 @@ class Vec3():
         self.y = float(y)
         self.z = float(z)
 
+    @staticmethod
+    def from_angles(lam, phi):
+        x = M.cos(lam) * M.cos(phi)
+        y = M.sin(phi)
+        z = M.sin(lam) * M.cos(phi)
+        return Vec3(x, y, z)
+
     def __str__(self):
         return f"x: {self.x}; y: {self.y}; z: {self.z}"
     
@@ -106,10 +113,3 @@ class Vec3():
         res_vec = Vec3(res_matrix[0][0], res_matrix[1][0], res_matrix[2][0])
         res_vec = f(res_vec, res_matrix[3][0])
         return res_vec
-    
-    @staticmethod
-    def from_angles(lam, phi):
-        x = M.cos(lam) * M.cos(phi)
-        y = M.sin(phi)
-        z = M.sin(lam) * M.cos(phi)
-        return Vec3(x, y, z)

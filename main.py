@@ -20,6 +20,15 @@ ASPECT_RATIO = HEIGHT / WIDTH
 DISTANCE_RATIO = 1 / M.tan(FOV / 2.0)
 Z_NORMALIZATION = Z_FAR / (Z_FAR - Z_NEAR)
 
+SCREEN_BORDER_PLANES = [ 
+    # a plane is a normal and a point
+    (Vec3(1, 0, 0), Vec3(0, 0, 0)), # left
+    (Vec3(0, 1, 0), Vec3(0, 0, 0)), # top
+    (Vec3(-1, 0, 0), Vec3(WIDTH, HEIGHT, 0)), # right
+    (Vec3(0, -1, 0), Vec3(WIDTH, HEIGHT, 0)), # bottom
+
+]
+
 PROJECTION_MATRIX = [
     [ASPECT_RATIO * DISTANCE_RATIO, 0.0, 0.0, 0.0],
     [0.0, ASPECT_RATIO * DISTANCE_RATIO, 0.0, 0.0],
@@ -38,7 +47,7 @@ SCREEN_SCCALING_MATRIX = [
     [0.0, 0.0, 0.0, 1.0]
 ]
 
-# thx wikipediaa
+# thx wikipedia
 def get_xrotation_matrix(angle):
     return [
         [1.0, 0.0, 0.0],
@@ -84,7 +93,6 @@ def inverse_matrix(mat):
         [C.x, C.y, C.z, -T.dot(C)],
         [0.0, 0.0, 0.0, 1.0],
     ]
-
 
 
 cube_verticies = [Vec3(0, 0, 0), Vec3(1, 0, 0), Vec3(1, 1, 0), Vec3(0, 1, 0),
@@ -159,6 +167,89 @@ def get_normal(tri):
     B = tri[2] - tri[0]
     return A.cross(B)
 
+def on_normal_side(plane, vec):
+    (normal, point) = plane
+    return normal.dot(vec - point) >= 0
+
+
+# this function is taken from this thread
+# https://stackoverflow.com/questions/5666222/
+# 3d-line-plane-intersection#18543221
+def intersect_edge_plane(plane, a, b, epsilon=1e-6):
+    (normal, point) = plane
+
+    delta = b - a
+    dot = normal.dot(delta)
+
+    if abs(dot) > epsilon:
+        # The factor of the point between a -> b (0 - 1)
+        # if 'fac' is between (0 - 1) the point intersects with the segment.
+        # Otherwise:
+        #  < 0.0: behind p0.
+        #  > 1.0: infront of p1.
+        w = a - point
+        fac = - normal.dot(w) / dot
+
+        return a + fac * delta
+
+    return None
+
+
+def clip_on_plane(plane, tri):
+    (normal, point) = plane
+    D = normal.dot(point)
+
+    normal_side = []
+    other_side = []
+    for vec in tri:
+        if on_normal_side(plane, vec):
+            normal_side.append(deepcopy(vec))
+        else:
+            other_side.append(deepcopy(vec))
+
+    # each case implies somthing else for what should be kept
+    # the order IS important !
+    # it not respected it will mess with the normals
+    n = len(normal_side)
+    if n == 3: return [normal_side]
+    if n == 0: return []
+    if n == 1:
+        return [[normal_side[0],
+            intersect_edge_plane(plane, normal_side[0], other_side[0]),
+            intersect_edge_plane(plane, normal_side[0], other_side[1])
+            ]]
+    else: # n == 2
+        boundary1 = intersect_edge_plane(plane, 
+            normal_side[0], other_side[0])
+        boundary2 = intersect_edge_plane(plane, 
+            normal_side[1], other_side[0])
+        
+        return [
+            [
+                normal_side[0],
+                normal_side[1], 
+                boundary1,
+            ],
+            [
+                normal_side[1],
+                boundary2, 
+                boundary1,
+            ],
+        ]
+    
+def clip_multiple_planes(planes, tri):
+    to_clip = [tri]
+    for plane in planes:
+        # clip all tris, we get a 2D list of tris
+        clipped_tris = [clip_on_plane(plane, tri) for tri in to_clip]
+        # turn the list into a 1D list of tris
+        to_clip = []
+        for row in clipped_tris:
+            for tri in row:
+                to_clip.append(tri)
+    return to_clip
+
+
 def clamp(n, minn, maxn):
     return max(min(maxn, n), minn)
     
@@ -171,7 +262,7 @@ def luminosity_from_light(normal, light):
 
 
 def draw_tri_lines(tri):
-    pygame.draw.lines(screen, (255, 255, 255), True, [
+    pygame.draw.lines(screen, (0, 0, 0), True, [
         (tri[0].x, tri[0].y),
         (tri[1].x, tri[1].y),
         (tri[2].x, tri[2].y)
@@ -213,17 +304,20 @@ def render(cam):
             get_normal(tri), LIGHT_SOURCE)
         
         for i, vec in enumerate(tri):
-            # camera tranform
+            # camera tranform ie view matrix
             vec = vec.extended_matrix_mul(view_matrix)
             tri[i] = vec
+        
+        # clip on close plane
+        clipped_tris = clip_on_plane((Vec3(0, 0, 1), Vec3(0, 0, Z_NEAR)), tri)
+        for clipped_tri in clipped_tris: 
+            # only draw triangles facing towards the camera
+            tri_normal = get_normal(clipped_tri)
+            if clipped_tri[0].dot(tri_normal) >= 0:
+                continue
 
-        # only draw triangles facing towards the camera
-        tri_normal = get_normal(tri)
-        if tri[0].dot(tri_normal) >= 0:
-            continue
-
-        z_mid = (tri[0].z + tri[1].z + tri[2].z) / 3.0
-        drawing_buffer.append((tri, z_mid, tri_normal, lum))
+            z_mid = (clipped_tri[0].z + clipped_tri[1].z + clipped_tri[2].z) / 3.0
+            drawing_buffer.append((clipped_tri, z_mid, tri_normal, lum))
 
     # sort based on the distance to the camera
     # this is an implementation of the painter's algorithm
@@ -241,10 +335,13 @@ def render(cam):
             vec = vec.extended_matrix_mul(SCREEN_SCCALING_MATRIX)
             tri[i] = vec
 
-        color = (lum, lum, lum)
+        clipped_tris = clip_multiple_planes(SCREEN_BORDER_PLANES, tri)
+        for clipped_tri in clipped_tris:
 
-        draw_tri_fill(color, tri)
-        # draw_triangle_fill(tri)
+            color = (lum, lum, lum)
+
+            draw_tri_fill(color, clipped_tri)
+            draw_tri_lines(clipped_tri)
 
 
 def update(dt, cam):
@@ -258,9 +355,7 @@ def update(dt, cam):
 def game_loop(cam):
     running = True
     clock = pygame.time.Clock()
-    count = 0
     while running:
-        count += 1
         # poll for events
         # pygame.QUIT event means the user clicked X to close your window
         for event in pygame.event.get():
@@ -299,3 +394,12 @@ if __name__ == "__main__":
     game_loop(camera)
     # quit
     pygame.quit()
+"""
+plane = (Vec3(0, 1, 0), Vec3(0, 0, 0))
+tri = [
+    Vec3(0, 1, 0),
+    Vec3(1, -1, 0),
+    Vec3(-1, -1, 0),
+]
+print([[str(y) for y in x] for x in clip_on_plane(plane, tri)])
+"""
