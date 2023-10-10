@@ -308,15 +308,18 @@ def render(cam):
             vec = vec.extended_matrix_mul(view_matrix)
             tri[i] = vec
         
+        tri_normal = get_normal(tri)
+        if tri[0].dot(tri_normal) >= 0:
+            continue
+
         # clip on close plane
-        clipped_tris = clip_on_plane((Vec3(0, 0, 1), Vec3(0, 0, Z_NEAR)), tri)
+        clipped_tris = clip_on_plane((Vec3(0, 0, 1), 
+                Vec3(0, 0, Z_NEAR)), tri)
         for clipped_tri in clipped_tris: 
             # only draw triangles facing towards the camera
-            tri_normal = get_normal(clipped_tri)
-            if clipped_tri[0].dot(tri_normal) >= 0:
-                continue
 
-            z_mid = (clipped_tri[0].z + clipped_tri[1].z + clipped_tri[2].z) / 3.0
+            z_mid = (clipped_tri[0].z + clipped_tri[1].z 
+                + clipped_tri[2].z) / 3.0
             drawing_buffer.append((clipped_tri, z_mid, tri_normal, lum))
 
     # sort based on the distance to the camera
