@@ -128,10 +128,10 @@ cube_indices = [
 minimal_indices = [[0, 1, 5]]
 
 image_vertices = [
-    Vec3(0, 0, 0), # top left
-    Vec3(1, 0, 0), # top right
-    Vec3(0, 1, 0), # bot left
-    Vec3(1, 1, 0), # bot right
+    Vec3(0, 0, 1), # top left
+    Vec3(1, 0, 1), # top right
+    Vec3(0, 1, 1), # bot left
+    Vec3(1, 1, 1), # bot right
 ]
 
 cube_uv_indices = [
@@ -405,7 +405,7 @@ def rasterize_trapezoid2(image, pixels, a, b, c, d, a_uv, b_uv, c_uv, d_uv):
                 # print(f"""a: [{a}]\na_uv: [{a_uv}]\nb: [{b}]
 # b_uv: [{b_uv}]\nty: {ty}; tx: {tx}; v: {v}; u: {u}""")
 
-            col = image.pixel_from_uv(uv.x, uv.y)
+            col = image.pixel_from_uv(uv.x / uv.z, uv.y / uv.z)
             # pixels[y][x] = col
             draw_pixel(x, y, col)
             # draw_pixel(x, y, (255, 255, 255))
@@ -486,7 +486,7 @@ def render(cam, pixels, should_print):
         
         for i, vec in enumerate(tri):
             # camera tranform ie view matrix
-            vec = vec.extended_matrix_mul(view_matrix)
+            vec, _ = vec.extended_matrix_mul(view_matrix)
             tri[i] = vec
         
         # only draw triangles facing towards the camera
@@ -517,10 +517,12 @@ def render(cam, pixels, should_print):
         (tri, uv, _, lum) = v
         for i, vec in enumerate(tri):
             # projection
-            vec = vec.extended_matrix_mul(
+            vec, w = vec.extended_matrix_mul(
                 PROJECTION_MATRIX, projection_divide)
+            uv[i] /= w # important for texture perspective
+
             # scale to the screen size
-            vec = vec.extended_matrix_mul(SCREEN_SCCALING_MATRIX)
+            vec, _ = vec.extended_matrix_mul(SCREEN_SCCALING_MATRIX)
             tri[i] = vec
 
         clipped_tris = clip_multiple_planes(SCREEN_BORDER_PLANES, (tri, uv))

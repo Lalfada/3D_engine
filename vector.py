@@ -112,4 +112,4 @@ class Vec3():
         res_matrix = matrix_mul(matrix, in_matrix)
         res_vec = Vec3(res_matrix[0][0], res_matrix[1][0], res_matrix[2][0])
         res_vec = f(res_vec, res_matrix[3][0])
-        return res_vec
+        return res_vec, res_matrix[3][0] # we might need that 4th component somewhere

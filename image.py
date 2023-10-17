@@ -23,8 +23,8 @@ class Image_Data():
         # print(f"h: {self.height}; w: {self,width}")
 
     def pixel_from_uv(self, u, v):
-        x = floor(self.width * u) if u != 1 else self.width - 1
-        y = floor(self.height * v) if v != 1 else self.height - 1
+        x = floor(self.width * u) if u < 1 else self.width - 1
+        y = floor(self.height * v) if v < 1 else self.height - 1
         if not (0 <= x <= self.width - 1) or not (0 <= y <= self.height - 1):
             print(f"u: {u}; v: {v}; x: {x}; y: {y}")
         return self.data[y][x]
