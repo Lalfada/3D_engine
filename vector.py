@@ -32,7 +32,7 @@ class Vec3():
         return Vec3(x, y, z)
 
     def __str__(self):
-        return f"x: {self.x}; y: {self.y}; z: {self.z}"
+        return f"(x: {self.x}; y: {self.y}; z: {self.z})"
     
     def __add__(self, other):
         return Vec3(self.x + other.x, self.y + other.y, self.z + other.z)
